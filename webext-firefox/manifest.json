@@ -1,0 +1,41 @@
+{
+    "manifest_version": 2,
+    "name": "Calm Colors",
+    "short_name": "Calm Colors",
+    "description": "Tone down web page colors for comfort and readability..",
+    "version": "1.0.3",
+    "homepage_url": "https://github.com/marekjedlinski/webext-calm-colors",
+    "author": "Marek Jedliński",
+
+    "background": {
+        "scripts": ["background.js"]
+    },
+
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["calmcolors.js"]
+      }
+    ],
+
+    "icons": {
+      "48": "icons/calmcolors_48.png"
+    },
+
+    "permissions": [
+        "tabs",
+        "storage",
+        "contextMenus"
+    ],
+
+    "web_accessible_resources": [
+        "css/*.css"
+    ],
+
+    "applications": {
+      "gecko": {
+        "id": "webext-calmcolors@tranglos.com",
+        "strict_min_version": "57.0"
+      }
+    }
+}

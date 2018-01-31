@@ -1,0 +1,25 @@
+* {
+    color: #5b4636 !important;
+    background-color: #f4ecd8 !important;
+    background-image: none !important;
+    border-color: #f4ecd8 !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+}
+
+:link, :link * {
+    color: #0095dd !important;
+}
+
+
+a:hover, a:active {
+    color: #A84300 !important;
+
+}
+
+:visited, :visited * {
+    color: #A84300 !important;
+
+}
+
+

@@ -1,0 +1,22 @@
+/* Firefox defaults, stylesheet from "No Color" add-on by SUN Chun-Yen */
+* {
+    color: -moz-default-color !important;
+    background-color: -moz-default-background-color !important;
+    background-image: none !important;
+    border-color: -moz-default-background-color !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+ }
+
+:link, :link * {
+    color: -moz-hyperlinktext !important;
+}
+
+a:hover, a:active {
+    color: -moz-visitedhyperlinktext !important;
+}
+
+
+:visited, :visited * {
+    color: -moz-visitedhyperlinktext !important;
+}

@@ -1,0 +1,35 @@
+{
+    "manifest_version": 2,
+    "name": "Calm Colors",
+    "short_name": "Calm Colors",
+    "description": "Reset web page colors to comfortable defaults.",
+    "version": "1.0.3",
+    "homepage_url": "https://github.com/marekjedlinski/webext-calm-colors",
+    "author": "Marek Jedliński",
+
+    "background": {
+        "persistent": true,
+        "scripts": ["background.js"]
+    },
+
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["calmcolors.js"]
+      }
+    ],
+
+    "icons": {
+      "48": "icons/calmcolors_48.png"
+    },
+
+    "permissions": [
+        "tabs",
+        "storage",
+        "contextMenus"
+    ],
+
+    "web_accessible_resources": [
+        "css/*.css"
+    ],
+
