@@ -18,6 +18,8 @@ Developed and tested in Firefox 58 and Chrome 64.
 ## Download
 
 Download for __Firefox:__
+https://addons.mozilla.org/pl/firefox/addon/calm-colors/
+
 
 Download for __Chrome:__
 (TBA)
