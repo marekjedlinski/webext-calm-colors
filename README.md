@@ -3,10 +3,10 @@
 Unreadable text on a page? Unpleasant color scheme? Not enough contrast? Garish colors hurt your eyes? This extension will apply a lightweight, pastel style to aweb page, to make browsing more comfortable.
 
 Four different, pleasant themes are available:
-    - browser default
-    - light
-    - sepia
-    - dark
+- browser default
+- light
+- sepia
+- dark
 
 Loosely based on the excellent "No Color" add-on for Firefox by SUN Chun-Yen, which is no longer supported.
 
@@ -19,7 +19,6 @@ Developed and tested in Firefox 58 and Chrome 64.
 
 Download for __Firefox:__
 https://addons.mozilla.org/pl/firefox/addon/calm-colors/
-
 
 Download for __Chrome:__
 (TBA)
@@ -38,6 +37,9 @@ To remove a theme, you can right-click the page, click "Calm Colors" and select 
 
 ## Version history
 
+
+1.0.5:
+- menu item checkmarks are now correctly updated when tabs change
 
 1.0.3:
 - Initial release.
