@@ -1,23 +1,34 @@
 'use strict';
 
 const CSS_NODE_ID = 'tonedown-css-theme-override';
-const CSS_THEME_ID = 'data-theme';
+const CSS_THEME_ID = 'data-tonedown-theme';
 
-chrome.runtime.onMessage.addListener(
-    function(request) {
-        // console.log(window.location);
-        switch (request.command) {
-            case 'apply':
-                applyCssScheme(request.scheme);
-                break;
-            case 'remove':
-                removeCssScheme();
-                break;
-            default:
-                console.log(`tonedown error: unrecognized command ${request.command}`);
-        }
+const requestApplyFile = 'apply-file';
+const requestDropTheme = 'no-theme';
+const requestQueryTheme = 'query-theme';
+
+
+browser.runtime.onMessage.addListener(request => {
+    const response = {
+        msg: 'ok'
     }
-);
+    switch (request.command) {
+        case requestApplyFile:
+            applyCssScheme(request.scheme);
+            break;
+        case requestDropTheme:
+            removeCssScheme();
+            break;
+        case requestQueryTheme:
+            // if no theme is applied, an empty string will be returned
+            response.theme = getThemeState();
+            break;
+        default:
+            response.msg = `unrecognized command ${request.command}`;
+            console.warn(response.msg);
+    }
+    return Promise.resolve(response);
+});
 
 function applyCssScheme(schemeFile) {
     const head = getDocumentHead();
@@ -36,6 +47,22 @@ function applyCssScheme(schemeFile) {
             removeCssNode(oldCssNode);
         }
     }
+}
+
+function getThemeState() {
+    // returns id of currently applied theme,
+    // or an empty string if no theme is applied
+    let currentTheme = '';
+    const cssNode = findCssNode();
+    if (cssNode) {
+        // return 'no-data' if we have the node but do not have the attribute
+        // (should bever happen)
+        // Instead of duplicating theme knowledge in CSS_THEME_ID attribute,
+        // we could derive it from the href attribute. And when theme is applied
+        // via <style>, there would only be one id: 'custom'.
+        currentTheme = cssNode.getAttribute(CSS_THEME_ID) || 'no-data';
+    }
+    return currentTheme;
 }
 
 function updateCssNode(cssNode, themeName) {
@@ -84,5 +111,5 @@ function getDocumentHead() {
     return head;
 }
 function getCssSchemeUrl(scheme) {
-    return chrome.runtime.getURL(`css/${scheme}.css`);
+    return browser.runtime.getURL(`css/${scheme}.css`);
 }

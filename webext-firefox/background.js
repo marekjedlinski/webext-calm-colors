@@ -3,76 +3,124 @@
 // Firefox defines both 'browser' and 'chrome'.
 // Chrome only defines 'chrome'
 const browserIsChrome = !browser;
+const browserDefaultTheme = browserIsChrome ? 'chrome-default' : 'moz-default';
 if  (browserIsChrome) {
   var browser = chrome;
 }
 
-const prefix = 'tonedown-';
-const commandApply = 'apply';
-const commandRemove = 'remove';
+// prefix for menu items
+const prefix = 'tonedown';
+// actions for menu items
+const actionApplyFile = 'apply-file';
+const actionDropTheme = 'no-theme';
+const actionQueryTheme = 'query-theme';
 
-// we must keep track of theme items we create,
+// we must keep track of items we create,
 // because webext API does not provide a way to query context menu items
-const menuThemes = [
-    makeDefaultThemeItem(),
-    ...makeStandardThemeItems(),
-    makeRemoveThemeItem()
-];
+const themeActions = makeThemeItems();
 buildContextMenuItems();
 
+browser.tabs.onUpdated.addListener(handleTabUpdated);
+browser.tabs.onActivated.addListener(handleTabActivated);
 
-function buildContextMenuItems() {
-    const itemContexts = ['page', 'frame', 'selection', 'link', 'image'];
-    for (let theme of menuThemes) {
-        if (theme.command === commandApply) {
-            // theme items
-            chrome.contextMenus.create({
-                id: theme.menuItemId,
-                title: theme.menuLabel,
-                contexts: itemContexts,
-                onclick: handleThemeApplyClick,
-                type: 'checkbox',
-                checked: false,
-            });
-        } else if (theme.command === commandRemove) {
-            // separator
-            chrome.contextMenus.create({
-                contexts: itemContexts,
-                type: 'separator'
-            });
 
-            // No theming, remove theme
-            chrome.contextMenus.create({
-                id: theme.menuItemId,
-                title: theme.menuLabel,
-                contexts: itemContexts,
-                onclick: handleThemeRemoveClick,
-                type: 'checkbox',
-                checked: true,
-            });
+function handleTabUpdated(tabId, changeInfo, tabInfo) {
+    if (changeInfo.status && changeInfo.status === 'complete') {
+        // [x] update menu state ONLY if the updated tab is the currently active tab
+        // (the updated tab may be a background tab, in which case we should not update the menu)
+        if (tabInfo.active) {
+            updateMenuItemStates(tabId);
         }
     }
 }
 
-function sendLoadThemeRequest(tabId, themeName) {
-    if (tabId && themeName) {
-        chrome.tabs.sendMessage(tabId, {
-            command: 'apply',
-            scheme: themeName
+function handleTabActivated(activeInfo) {
+    // updateMenuItemStates() needs to send a message to find out which theme is active,
+    // if any, on this tab. but, onActivated is also fired for opening a new tab,
+    // and our content script does not run on a new tab page (or any about: URLs).
+    // We *could* check for this here, but in the end updateMenuItemStates() will still
+    // do the correct thing in .catch() when IT gets the error.
+    updateMenuItemStates(activeInfo.tabId);
+/*
+    browser.tabs.get(activeInfo.tabId)
+        .then(tab => {
+            if (tab.url.startsWith('about')) {
+                checkActiveMenuItem(actionDropTheme);
+            } else {
+                updateMenuItemStates(activeInfo.tabId);
+            }
+        })
+        .catch(error => {
+            checkActiveMenuItem(actionDropTheme);
         });
-        checkActiveMenuItem(themeName);
+*/
+}
+
+
+function buildContextMenuItems() {
+    const itemContexts = ['page', 'frame', 'selection', 'link', 'image'];
+    for (let item of themeActions) {
+        if (item.sep) {
+            browser.contextMenus.create({
+                contexts: itemContexts,
+                type: 'separator',
+            });
+        }
+        browser.contextMenus.create({
+            id: item.menuItemId,
+            title: item.menuItemLabel,
+            contexts: itemContexts,
+            onclick: handleThemeClick,
+            type: 'checkbox',
+            checked: item.action === actionDropTheme, // "No Theme" is initially checked
+        });
     }
 }
 
+function handleThemeClick(info, tab) {
+    const action = findActionFromMenuItem(info.menuItemId);
+    if (action) {
+        sendThemeRequest(tab.id, action.action, action.itemId);
+    }
+}
+
+function sendThemeRequest(tabId, actionName, itemName) {
+    if (tabId && actionName) {
+        browser.tabs.sendMessage(tabId, {
+            command: actionName,
+            scheme: itemName,
+        }).then(() => {
+            updateMenuItemStates(tabId);
+        }).catch(error => {
+            // console.error('error in sendThemeRequest', error);
+            // this happens when we cannot send the message, e.g. when current tab is about:blank
+            // In this case updateMenuItemStates() will fail too, since it also sends a message to tab.
+            checkActiveMenuItem(actionDropTheme);
+        });
+    }
+}
+
+function updateMenuItemStates(tabId) {
+    if (browserIsChrome) return; // updating 'checked' does not currently work in Chrome
+    browser.tabs.sendMessage(tabId, {
+        command: actionQueryTheme,
+    }).then(response => {
+        // if no theme is applied, response.theme is an empty string
+        checkActiveMenuItem(response.theme || actionDropTheme);
+    }).catch(error => {
+        // console.error('error in updateMenuItemStates', error);
+        checkActiveMenuItem(actionDropTheme);
+    });
+}
+
 function checkActiveMenuItem(itemName) {
-    // do not attempt this in Chrome (manually toggling checkjed state does not work)
-    if (browserIsChrome) return;
-    const menuItemId = findMenuItemFromThemeName(itemName);
+    if (browserIsChrome) return; // updating 'checked' does not currently work in Chrome
+    const menuItemId = findMenuItemFromActionId(itemName);
     setTimeout(function() {
         if (menuItemId) {
-            menuThemes.forEach(item => {
+            themeActions.forEach(item => {
                 const isChecked = menuItemId === item.menuItemId;
-                chrome.contextMenus.update(item.menuItemId, {checked: isChecked}, function() {
+                browser.contextMenus.update(item.menuItemId, {checked: isChecked}, function() {
                     // console.log('updated!', item.menuItemId, isChecked);
                 });
             })
@@ -80,73 +128,49 @@ function checkActiveMenuItem(itemName) {
     }, 100); // minimal timeout appears sufficient for Firefox
 }
 
-function findMenuItemFromThemeName(themeName) {
-    // takes a theme name (e.g. from storage) and returns the menu item id
-    // associated with this theme
-    const themeItem = menuThemes.find(item => {
-        return themeName === item.themeName;
+function findMenuItemFromActionId(itemId) {
+    // takes an action id and returns the menu item id
+    const action = themeActions.find(item => {
+        return itemId === item.itemId;
     });
-    if (themeItem) {
-        return themeItem.menuItemId;
+    if (action) {
+        return action.menuItemId;
     }
-    console.error('Could not find menu item for', themeName);
+    console.warn('Could not find menu item for', itemId);
     return '';
  }
 
-function findThemeNameFromMenuItem(menuItemId) {
-    // takes a menu item id and returns the theme namme
-    // (which identifies the css filename or - in the future - a custom theme)
-    const themeItem = menuThemes.find(item => {
+function findActionFromMenuItem(menuItemId) {
+    // takes a menu item id and returns the action
+    const action = themeActions.find(item => {
         return item.menuItemId === menuItemId;
     });
-    if (themeItem) {
-        return themeItem.themeName;
+    if (!action) {
+        console.warn('Could not find action for', menuItemId);
     }
-    console.error('Could not find theme item', menuItemId);
-    return '';
-}
-
-function handleThemeApplyClick(info, tab) {
-    sendLoadThemeRequest(tab.id, findThemeNameFromMenuItem(info.menuItemId));
-}
-
-function handleThemeRemoveClick(info, tab) {
-    // remove theme (restore original page styles)
-    chrome.tabs.sendMessage(tab.id,
-    {
-        command: 'remove'
-    });
-    checkActiveMenuItem(commandRemove);
+    return action;
 }
 
 
-function makeDefaultThemeItem() {
-    if (browserIsChrome) {
-        return makeThemeItem('chrome-default', 'Default', 'file');
-    }
-    return makeThemeItem('moz-default', 'Default', 'file');
-}
 
-function makeStandardThemeItems() {
-    return [
-        makeThemeItem('light', 'Light', 'file'),
-        makeThemeItem('sepia', 'Sepia', 'file'),
-        makeThemeItem('dark', 'Dark', 'file')
-    ];
-}
-
-function makeRemoveThemeItem() {
-    return makeThemeItem('remove', 'No Theme', '', commandRemove);
-}
-
-function makeThemeItem(themeName, themeLabel, themeType, itemCommand=commandApply) {
+function makeThemeItem(itemId, itemLabel, itemAction, sep=false) {
     return {
-        menuItemId: prefix + themeName, // unique identifier for context menu item
-        menuLabel: themeLabel, // user-friendly label for the menu item
-        themeName: themeName, // name of css file (sans 'css')
-        type: themeType, // 'file' or, later 'custom'
-        command: itemCommand // menu item action: apply or remove theme
+        menuItemId: `${prefix}-${itemAction}-${itemId}`, // unique identifier for context menu item
+        menuItemLabel: itemLabel, // user-friendly label for the menu item
+        itemId: itemId, // name of css file (sans 'css'), or 'drop'
+        action: itemAction, // load theme, drop theme
+        sep: sep,
     };
+}
+
+function makeThemeItems() {
+    return [
+        makeThemeItem(browserDefaultTheme, 'Default', actionApplyFile),
+        makeThemeItem('light', 'Light', actionApplyFile),
+        makeThemeItem('sepia', 'Sepia', actionApplyFile),
+        makeThemeItem('dark', 'Dark', actionApplyFile),
+        makeThemeItem(actionDropTheme, 'No Theme', actionDropTheme, true),
+    ];
 }
 
 
@@ -166,3 +190,5 @@ function extractHostname(url) {
     hostname = hostname.split('?')[0];
     return hostname;
 }
+
+
