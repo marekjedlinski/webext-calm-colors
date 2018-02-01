@@ -24,39 +24,6 @@ browser.tabs.onUpdated.addListener(handleTabUpdated);
 browser.tabs.onActivated.addListener(handleTabActivated);
 
 
-function handleTabUpdated(tabId, changeInfo, tabInfo) {
-    if (changeInfo.status && changeInfo.status === 'complete') {
-        // [x] update menu state ONLY if the updated tab is the currently active tab
-        // (the updated tab may be a background tab, in which case we should not update the menu)
-        if (tabInfo.active) {
-            updateMenuItemStates(tabId);
-        }
-    }
-}
-
-function handleTabActivated(activeInfo) {
-    // updateMenuItemStates() needs to send a message to find out which theme is active,
-    // if any, on this tab. but, onActivated is also fired for opening a new tab,
-    // and our content script does not run on a new tab page (or any about: URLs).
-    // We *could* check for this here, but in the end updateMenuItemStates() will still
-    // do the correct thing in .catch() when IT gets the error.
-    updateMenuItemStates(activeInfo.tabId);
-/*
-    browser.tabs.get(activeInfo.tabId)
-        .then(tab => {
-            if (tab.url.startsWith('about')) {
-                checkActiveMenuItem(actionDropTheme);
-            } else {
-                updateMenuItemStates(activeInfo.tabId);
-            }
-        })
-        .catch(error => {
-            checkActiveMenuItem(actionDropTheme);
-        });
-*/
-}
-
-
 function buildContextMenuItems() {
     const itemContexts = ['page', 'frame', 'selection', 'link', 'image'];
     for (let item of themeActions) {
@@ -84,6 +51,37 @@ function handleThemeClick(info, tab) {
     }
 }
 
+function handleTabUpdated(tabId, changeInfo, tabInfo) {
+    if (changeInfo.status && changeInfo.status === 'complete' && tabInfo.active) {
+        // update menu state ONLY if the updated tab is the currently active tab
+        // (the updated tab may be a background tab, in which case we should not update the menu)
+        updateMenuItemStates(tabId);
+    }
+}
+
+function handleTabActivated(activeInfo) {
+    // updateMenuItemStates() needs to send a message to find out which theme is active,
+    // if any, on this tab. but, onActivated is also fired for opening a new tab,
+    // and our content script does not run on a new tab page (or any about: URLs).
+    // We *could* check for this here, but in the end updateMenuItemStates() will still
+    // do the correct thing in .catch() when IT gets the error.
+    updateMenuItemStates(activeInfo.tabId);
+/*
+    browser.tabs.get(activeInfo.tabId)
+        .then(tab => {
+            if (tab.url.startsWith('about')) {
+                checkActiveMenuItem(actionDropTheme);
+            } else {
+                updateMenuItemStates(activeInfo.tabId);
+            }
+        })
+        .catch(error => {
+            checkActiveMenuItem(actionDropTheme);
+        });
+*/
+}
+
+
 function sendThemeRequest(tabId, actionName, itemName) {
     if (tabId && actionName) {
         browser.tabs.sendMessage(tabId, {
@@ -91,8 +89,7 @@ function sendThemeRequest(tabId, actionName, itemName) {
             scheme: itemName,
         }).then(() => {
             updateMenuItemStates(tabId);
-        }).catch(error => {
-            // console.error('error in sendThemeRequest', error);
+        }).catch(() => {
             // this happens when we cannot send the message, e.g. when current tab is about:blank
             // In this case updateMenuItemStates() will fail too, since it also sends a message to tab.
             checkActiveMenuItem(actionDropTheme);
@@ -107,8 +104,7 @@ function updateMenuItemStates(tabId) {
     }).then(response => {
         // if no theme is applied, response.theme is an empty string
         checkActiveMenuItem(response.theme || actionDropTheme);
-    }).catch(error => {
-        // console.error('error in updateMenuItemStates', error);
+    }).catch(() => {
         checkActiveMenuItem(actionDropTheme);
     });
 }
